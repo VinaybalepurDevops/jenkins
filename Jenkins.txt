@@ -1,0 +1,102 @@
+Jenkins pipe lines -
+1. There are two types of pipelines 
+  * Declarative Stats with keyword pipeline - 
+
+      Declarative and Scripted Pipelines are constructed fundamentally differently. Declarative Pipeline 
+      is a more recent feature of Jenkins Pipeline which:
+
+          * provides richer syntactical features over Scripted Pipeline syntax, and 
+            is designed to make writing and reading Pipeline code easier.
+
+      Many of the individual syntactical components (or "steps") written into a Jenkinsfile, 
+      however, are common to both Declarative and Scripted Pipeline.
+
+  * Scripted pipelines
+
+    * In Scripted Pipeline syntax, one or more node blocks do the core work throughout the entire Pipeline.   Although this is not a mandatory requirement of Scripted Pipeline syntax, confining your Pipeline’s work inside of a node block does two things:
+
+        * Schedules the steps contained within the block to run by adding an item to the Jenkins queue. As soon as an executor is free on a node, the steps will run.
+
+        * Creates a workspace (a directory specific to that particular Pipeline) where work can be done on files checked out from source control.
+
+
+pipeline{
+  //agent - Where to run the code
+  agent {label 'node1'}
+
+  // This block allows us to pre build configuration
+  options {
+        // Timeout counter starts AFTER agent is allocated
+        timeout(time: 10, unit: 'SECONDS')
+        buildDiscarder(logRotator(daysToKeepStr: '1'))
+        retry(3)
+    }
+
+  //This allows us to add different params to the build job. Run the job once and post that we will get these
+  //options to build with parameters.
+  parameters{
+        string(name: 'BRANCH', 'defaultValue': 'develop')
+        choice(name: 'ENV', choices: ['Dev', 'QA', 'Prod'])
+        booleanParam(name: 'UnitTest_case_execution', 'defaultValue': true)
+  }
+  // All the steps to be executed as part the build process
+  stages{
+    stage("First stage"){
+      steps{
+        sh "echo Starting first stage"
+        sh "rm -rf newfolder"
+        sh "mkdir newfolder"
+        // Comment out the following line to enable retry mechanism. This will retry the job for 3 times
+        // before failing it.
+        //sh "sleeeeep 20"
+        sh "echo Closing first stage"
+      }
+  }
+    stage("Second stage"){
+        // This agent will be picked up instead of node1. If we do not configure at this, then main level
+        // agent will be picked up. This is defining the agent at the stage level
+        agent {label 'master'}
+        steps{
+          sh "echo Starting second stage"
+          
+          sh "echo Closing second stage"
+        }
+    }
+
+    // This allows us to run the stages in parallel. If there are independent steps then we can run in parallel 
+    // to save time
+    stage("Parallel stage"){
+      parallel{
+        stage("Parallel First stage"){
+          steps{
+            sh "echo Starting first stage"
+            sh "rm -rf newfolder"
+            sh "mkdir newfolder"
+            // Comment out the following line to enable retry mechanism. This will retry the job for 3 times
+            // before failing it.
+            //sh "sleeeeep 20"
+            sh "echo Closing first stage"
+            sh "sleep 60"
+          }
+    }
+        stage("Parallel Second stage"){
+            // This agent will be picked up instead of node1. If we do not configure at this, then main level
+            // agent will be picked up. This is defining the agent at the stage level
+            agent {label 'master'}
+            steps{
+              sh "echo Starting second stage"
+              
+              sh "echo Closing second stage"
+              
+            }
+        }
+      }
+    }
+  }
+
+  post{
+      always{
+        echo "I will run always"
+      }
+  }
+}
